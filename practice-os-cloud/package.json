@@ -1,0 +1,37 @@
+{
+  "name": "practice-os-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloud multi-location Practice OS for accounting, GST, TDS, ITR, audit and compliance office operations.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "seed": "tsx scripts/seed-from-local-json.ts",
+    "generate:tasks": "tsx scripts/generate-recurring-tasks.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.46.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.0.0",
+    "prisma": "^5.22.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsx": "^4.19.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.16.0",
+    "eslint-config-next": "^15.0.0",
+    "typescript": "^5.7.2"
+  }
+}

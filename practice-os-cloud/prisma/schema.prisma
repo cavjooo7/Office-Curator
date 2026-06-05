@@ -1,0 +1,442 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  REVIEWER
+  STAFF
+  VIEWER
+}
+
+enum WorkStatus {
+  NOT_STARTED
+  DATA_AWAITED
+  IN_PROGRESS
+  PREPARED
+  UNDER_REVIEW
+  CORRECTION_REQUIRED
+  READY_FOR_SUBMISSION
+  FILED_SUBMITTED
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  AS_NEEDED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DocumentStatus {
+  REQUESTED
+  RECEIVED
+  REVIEWED
+  ACCEPTED
+  REJECTED
+  ARCHIVED
+}
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  name            String
+  role            Role       @default(STAFF)
+  active          Boolean    @default(true)
+  staffProfile    Staff?
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Staff {
+  id                 String       @id @default(cuid())
+  userId             String?      @unique
+  name               String
+  initials           String?
+  roleTitle          String?
+  email              String?
+  active             Boolean      @default(true)
+  assignedGroups     String[]
+  assignedServices   String[]
+  user               User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  assignedClients    Client[]     @relation("AssignedStaff")
+  reviewClients      Client[]     @relation("Reviewer")
+  assignedTasks      Task[]       @relation("TaskAssignedStaff")
+  reviewTasks        Task[]       @relation("TaskReviewer")
+  timeEntries        TimeEntry[]
+  workloadSnapshots  StaffWorkloadSnapshot[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([active])
+  @@index([email])
+}
+
+model ClientGroup {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  revenuePaLakhs Decimal?
+  notes          String?
+  clients        Client[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Client {
+  id                 String       @id @default(cuid())
+  code               String       @unique
+  name               String
+  groupId            String?
+  constitution       String?
+  industryType       String?
+  gstin              String?
+  pan                String?
+  city               String?
+  status             String       @default("Active")
+  booksMaintainedBy  String?
+  billingCategory    String       @default("Standard")
+  complexity         String       @default("Medium")
+  responsiveness     String       @default("Normal")
+  remarks            String?
+  assignedStaffId    String?
+  reviewerId         String?
+  group              ClientGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  assignedStaff      Staff?       @relation("AssignedStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  reviewer           Staff?       @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  clientServices     ClientService[]
+  tasks              Task[]
+  timeEntries        TimeEntry[]
+  fee                Fee?
+  documents          Document[]
+  profitability      ClientProfitabilitySnapshot[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([groupId])
+  @@index([assignedStaffId])
+  @@index([reviewerId])
+  @@index([status])
+  @@index([name])
+}
+
+model Service {
+  id                 String       @id @default(cuid())
+  name               String       @unique
+  category           String       @default("Compliance")
+  frequency          Frequency
+  defaultDueRule     String?
+  defaultStaffRole   String?
+  defaultReviewer    String?
+  estimatedHours     Decimal      @default(1)
+  standardFeeMin     Decimal      @default(0)
+  standardFeeMax     Decimal      @default(0)
+  riskLevel          String       @default("Medium")
+  remarks            String?
+  clientServices     ClientService[]
+  recurringRules     RecurringRule[]
+  tasks              Task[]
+  checklistTemplates ChecklistTemplate[]
+  sopTemplates       SopTemplate[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([category])
+  @@index([frequency])
+}
+
+model ClientService {
+  id              String    @id @default(cuid())
+  clientId        String
+  serviceId       String
+  active          Boolean   @default(true)
+  assignedStaffId String?
+  reviewerId      String?
+  customDueRule   String?
+  estimatedHours  Decimal?
+  agreedFee       Decimal   @default(0)
+  notes           String?
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  service         Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, serviceId])
+  @@index([clientId])
+  @@index([serviceId])
+}
+
+model RecurringRule {
+  id                 String    @id @default(cuid())
+  name               String
+  serviceId          String
+  frequency          Frequency
+  periodFormat       String    @default("MMM yyyy")
+  dueDay             Int?
+  internalReviewDay  Int?
+  generateDaysBefore Int       @default(7)
+  active             Boolean   @default(true)
+  appliesTo          String    @default("ACTIVE_CLIENT_SERVICES")
+  config             Json?
+  lastGeneratedFor   String?
+  service            Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([active])
+  @@index([frequency])
+}
+
+model Task {
+  id                     String          @id @default(cuid())
+  clientId               String
+  serviceId              String
+  title                  String
+  period                 String
+  dueDate                DateTime
+  internalReviewDueDate  DateTime?
+  assignedStaffId        String?
+  reviewerId             String?
+  priority               Priority        @default(MEDIUM)
+  status                 WorkStatus      @default(NOT_STARTED)
+  timeEstimateHours      Decimal         @default(1)
+  actualTimeHours        Decimal         @default(0)
+  internalNotes          String?
+  clientNotes            String?
+  completionDate         DateTime?
+  reviewDate             DateTime?
+  generatedByRuleId      String?
+  client                 Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  service                Service         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  assignedStaff          Staff?          @relation("TaskAssignedStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  reviewer               Staff?          @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  checklistItems         TaskChecklist[]
+  comments               TaskComment[]
+  reviewLogs             ReviewLog[]
+  documents              Document[]
+  timeEntries            TimeEntry[]
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@unique([clientId, serviceId, period])
+  @@index([assignedStaffId, dueDate])
+  @@index([reviewerId, status])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model ChecklistTemplate {
+  id          String   @id @default(cuid())
+  serviceId   String
+  itemText    String
+  sortOrder   Int      @default(0)
+  mandatory   Boolean  @default(true)
+  service     Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+}
+
+model TaskChecklist {
+  id            String    @id @default(cuid())
+  taskId        String
+  itemText      String
+  mandatory     Boolean   @default(true)
+  done          Boolean   @default(false)
+  doneByStaffId String?
+  doneAt        DateTime?
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model TaskComment {
+  id          String   @id @default(cuid())
+  taskId      String
+  authorId    String?
+  commentType String   @default("Internal")
+  comment     String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model ReviewLog {
+  id                  String     @id @default(cuid())
+  taskId              String
+  preparedByStaffId   String?
+  preparedDate        DateTime?
+  reviewedByStaffId   String?
+  reviewDate          DateTime?
+  reviewRemarks       String?
+  correctionStatus    String     @default("Not Required")
+  finalApprovalStatus String     @default("Pending")
+  task                Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt           DateTime   @default(now())
+}
+
+model SopTemplate {
+  id           String   @id @default(cuid())
+  serviceId    String
+  title        String
+  purpose      String?
+  steps        String
+  reviewPoints String?
+  version      String   @default("1.0")
+  active       Boolean  @default(true)
+  service      Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+}
+
+model SopException {
+  id                 String    @id @default(cuid())
+  taskId             String
+  requestedByStaffId String?
+  approvedByStaffId  String?
+  reason             String
+  approvalStatus     String    @default("Pending")
+  requestedAt        DateTime  @default(now())
+  approvedAt         DateTime?
+}
+
+model TimeEntry {
+  id         String    @id @default(cuid())
+  staffId    String
+  clientId   String
+  taskId     String?
+  serviceId  String?
+  workDate   DateTime
+  startTime  String?
+  endTime    String?
+  totalHours Decimal   @default(0)
+  billable   Boolean   @default(true)
+  remarks    String?
+  staff      Staff     @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  task       Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([staffId, workDate])
+  @@index([clientId, workDate])
+}
+
+model Fee {
+  id                   String   @id @default(cuid())
+  clientId             String   @unique
+  monthlyRetainership  Decimal  @default(0)
+  yearlyCompliance     Decimal  @default(0)
+  itrFee               Decimal  @default(0)
+  taxAuditFee          Decimal  @default(0)
+  gstFee               Decimal  @default(0)
+  tdsFee               Decimal  @default(0)
+  rocReraFee           Decimal  @default(0)
+  specialAssignmentFee Decimal  @default(0)
+  outOfPocketExpenses  Decimal  @default(0)
+  billingFrequency     String   @default("Monthly")
+  paymentStatus        String   @default("Pending")
+  outstandingAmount    Decimal  @default(0)
+  suggestedCategory    String   @default("Standard")
+  suggestedFee         Decimal  @default(0)
+  profitabilityScore   Decimal  @default(0)
+  actionRequired       String   @default("Continue")
+  client               Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id           String         @id @default(cuid())
+  clientId     String
+  taskId       String?
+  documentType String?
+  title        String
+  bucket       String         @default("task-documents")
+  storagePath  String
+  status       DocumentStatus @default(RECEIVED)
+  uploadedById String?
+  receivedDate DateTime       @default(now())
+  remarks      String?
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  task         Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([taskId])
+}
+
+model ClientProfitabilitySnapshot {
+  id                    String   @id @default(cuid())
+  clientId              String
+  period                String
+  monthlyFee            Decimal  @default(0)
+  estimatedMonthlyHours Decimal  @default(0)
+  actualMonthlyHours    Decimal  @default(0)
+  serviceCount          Int      @default(0)
+  delayByClientCount    Int      @default(0)
+  reviewEffortCount     Int      @default(0)
+  complianceRiskScore   Decimal  @default(0)
+  profitabilityScore    Decimal  @default(0)
+  clientGrade           String?
+  suggestedFee          Decimal  @default(0)
+  revisionReason        String?
+  discussionPriority    String?
+  client                Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+
+  @@unique([clientId, period])
+  @@index([period])
+  @@index([clientGrade])
+}
+
+model StaffWorkloadSnapshot {
+  id                     String   @id @default(cuid())
+  staffId                String
+  period                 String
+  assignedClients        Int      @default(0)
+  openTasks              Int      @default(0)
+  overdueTasks           Int      @default(0)
+  reviewPendingTasks     Int      @default(0)
+  estimatedHoursThisWeek Decimal  @default(0)
+  actualHoursThisMonth   Decimal  @default(0)
+  workloadScore          Decimal  @default(0)
+  workloadBand           String?
+  staff                  Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  createdAt              DateTime @default(now())
+
+  @@unique([staffId, period])
+  @@index([period])
+  @@index([workloadScore])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  entityType String
+  entityId   String
+  action     String
+  before     Json?
+  after      Json?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
