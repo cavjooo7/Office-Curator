@@ -186,3 +186,5 @@ This scaffold prepares the cloud system. The next build steps are:
 - Client portal for data requests
 - Email/WhatsApp reminders
 - Monthly review pack generation
+
+Deployment trigger
