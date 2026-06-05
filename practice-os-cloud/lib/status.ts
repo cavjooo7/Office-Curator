@@ -11,6 +11,12 @@ export const openStatuses: WorkStatus[] = [
   WorkStatus.ON_HOLD
 ];
 
+const doneStatuses: WorkStatus[] = [
+  WorkStatus.COMPLETED,
+  WorkStatus.FILED_SUBMITTED,
+  WorkStatus.CANCELLED
+];
+
 export function isDone(status: WorkStatus) {
-  return [WorkStatus.COMPLETED, WorkStatus.FILED_SUBMITTED, WorkStatus.CANCELLED].includes(status);
+  return doneStatuses.includes(status);
 }
