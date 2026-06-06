@@ -1,17 +1,27 @@
 "use server";
 
-import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 
-export async function loginWithEmail(formData: FormData) {
-  const email = String(formData.get("email") || "");
-  const headerStore = await headers();
-  const origin = headerStore.get("origin") || "http://localhost:3000";
+export async function loginWithPassword(formData: FormData) {
+  const email = String(formData.get("email") || "").trim();
+  const password = String(formData.get("password") || "");
   const supabase = await createSupabaseServerClient();
-  await supabase.auth.signInWithOtp({
+
+  const { error } = await supabase.auth.signInWithPassword({
     email,
-    options: {
-      emailRedirectTo: `${origin}/dashboard`
-    }
+    password
   });
+
+  if (error) {
+    redirect("/login?error=invalid");
+  }
+
+  redirect("/dashboard");
+}
+
+export async function logout() {
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
+  redirect("/login");
 }
