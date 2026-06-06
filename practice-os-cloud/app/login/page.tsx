@@ -1,15 +1,24 @@
-import { loginWithEmail } from "./server-actions";
+import { loginWithPassword } from "./server-actions";
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams?: Promise<{ error?: string }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const hasError = params?.error === "invalid";
+
   return (
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
       <section className="section" style={{ width: "min(460px, 100%)" }}>
         <p className="eyebrow">Practice OS Cloud</p>
         <h1>Login</h1>
-        <p className="muted">Enter your office email. Supabase will send a secure magic link.</p>
-        <form action={loginWithEmail} className="form">
+        <p className="muted">Use the email and password created for your office account.</p>
+        {hasError ? <p className="badge high">Invalid email or password. Please check the Supabase user record.</p> : null}
+        <form action={loginWithPassword} className="form">
           <label>Email<input name="email" type="email" required placeholder="staff@example.com" /></label>
-          <button>Send Login Link</button>
+          <label>Password<input name="password" type="password" required placeholder="Enter password" /></label>
+          <button>Login</button>
         </form>
       </section>
     </main>
